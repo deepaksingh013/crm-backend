@@ -1,13 +1,22 @@
 import bcrypt from "bcryptjs";
 import dotenv from "dotenv";
 import connectDB from "./db.js";
-import User from "../backend/src/config/model/User.js";
+import User from "./src/config/model/User.js";
 
 dotenv.config();
 
 const createAdmin = async () => {
   try {
     await connectDB();
+
+    const existingAdmin = await User.findOne({
+      email: "admin@gmail.com",
+    });
+
+    if (existingAdmin) {
+      console.log("Admin already exists:", existingAdmin.email);
+      process.exit(0);
+    }
 
     const password = await bcrypt.hash("123456", 10);
 
@@ -23,15 +32,17 @@ const createAdmin = async () => {
         "campaigns",
         "leads",
         "assignments",
-        "reports"
-      ]
+        "reports",
+      ],
     });
 
-    console.log("Admin created:", admin.email);
+    console.log("✅ Admin created successfully");
+    console.log("Email:", admin.email);
+    console.log("Password: 123456");
 
     process.exit(0);
   } catch (error) {
-    console.error(error);
+    console.error("❌ Admin creation failed:", error.message);
     process.exit(1);
   }
 };
