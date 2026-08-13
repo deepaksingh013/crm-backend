@@ -5,6 +5,7 @@ import User from "../model/User.js";
 // ================= LOGIN =================
 
 export const login = async (req, res) => {
+  // console.log("hello")
   try {
     const { email, password } = req.body;
 

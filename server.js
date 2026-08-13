@@ -7,6 +7,7 @@ import connectDB from "./db.js";
 import authRoutes from "./src/config/route/authRoutes.js";
 import userRoutes from "./src/config/route/userRoutes.js";
 import campaignRoutes from "./src/config/route/campaignRoutes.js";
+import campaignLeadRoutes from "./src/config/route/campaignLeadRoutes.js"
 
 dotenv.config();
 
@@ -19,6 +20,11 @@ connectDB();
 app.use(cors());
 app.use(express.json());
 
+// TEMP DEBUG - remove after fixing
+app.use((req, res, next) => {
+  console.log("INCOMING:", req.method, req.originalUrl);
+  next();
+});
 // Test API
 app.get("/", (req, res) => {
   res.json({
@@ -30,8 +36,9 @@ app.get("/", (req, res) => {
 // Routes
 app.use("/api/auth", authRoutes);
 app.use("/api/users", userRoutes);
-app.use("/api/campaigns", campaignRoutes);
 
+app.use("/api/campaigns/:campaignId/leads/import", campaignLeadRoutes); // MORE SPECIFIC — put first
+app.use("/api/campaigns", campaignRoutes); // MORE GENERAL — put after
 // Server
 const PORT = process.env.PORT || 5000;
 

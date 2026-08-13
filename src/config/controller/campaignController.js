@@ -1,6 +1,7 @@
 import Campaign from "../model/Campaign.js";
 
 export const createCampaign = async (req, res) => {
+ 
   try {
     const { title } = req.body;
 
@@ -42,6 +43,7 @@ export const createCampaign = async (req, res) => {
 };
 
 export const getCampaigns = async (req, res) => {
+   console.log("hello")
   try {
     const campaigns = await Campaign.find().sort({ createdAt: -1 });
 
