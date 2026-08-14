@@ -19,12 +19,12 @@ connectDB();
 // Middleware
 app.use(cors());
 app.use(express.json());
-
-// TEMP DEBUG - remove after fixing
 app.use((req, res, next) => {
   console.log("INCOMING:", req.method, req.originalUrl);
   next();
 });
+// TEMP DEBUG - remove after fixing
+
 // Test API
 app.get("/", (req, res) => {
   res.json({
@@ -36,9 +36,8 @@ app.get("/", (req, res) => {
 // Routes
 app.use("/api/auth", authRoutes);
 app.use("/api/users", userRoutes);
-
-app.use("/api/campaigns/:campaignId/leads/import", campaignLeadRoutes); // MORE SPECIFIC — put first
-app.use("/api/campaigns", campaignRoutes); // MORE GENERAL — put after
+app.use("/api/campaigns", campaignLeadRoutes);   // specific routes first
+app.use("/api/campaigns", campaignRoutes);       // generic/catch-all routes second
 // Server
 const PORT = process.env.PORT || 5000;
 

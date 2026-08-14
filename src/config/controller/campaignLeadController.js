@@ -174,3 +174,45 @@ export const importCampaignLeads = async (req, res) => {
     });
   }
 };
+
+export const getCampaignLeads = async (req, res) => {
+  try {
+    console.log("🔥 GET CAMPAIGN LEADS HIT");
+    console.log("Campaign ID:", req.params.campaignId);
+    console.log("User:", req.user);
+
+    const { campaignId } = req.params;
+
+    const campaign = await Campaign.findById(campaignId);
+
+    if (!campaign) {
+      return res.status(404).json({
+        success: false,
+        message: "Campaign not found",
+      });
+    }
+
+    const leads = await Lead.find({
+      campaign: campaignId,
+    })
+      .populate("assignedTo", "name email role")
+      .populate("assignedBy", "name email role")
+      .populate("createdBy", "name email role")
+      .sort({ createdAt: -1 });
+
+    return res.status(200).json({
+      success: true,
+      message: "Campaign leads fetched successfully",
+      count: leads.length,
+      data: leads,
+    });
+  } catch (error) {
+    console.error("GET LEADS ERROR:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Internal server error",
+      error: error.message,
+    });
+  }
+};

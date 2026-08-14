@@ -1,20 +1,26 @@
 import express from "express";
 import multer from "multer";
 
-import {importCampaignLeads } from "../controller/campaignLeadController.js"
+import {
+  importCampaignLeads,
+  getCampaignLeads,
+} from "../controller/campaignLeadController.js";
 
 import authMiddleware from "../middleware/authMiddleware.js";
-// import { restrictTo } from "../middleware/roleMiddleware.js"; // uncomment if you have role checks
 
-const router = express.Router({ mergeParams: true }); // mergeParams so :campaignId is accessible
+const router = express.Router();
 
-// Multer setup — memory storage since your controller uses req.file.buffer
-const upload = multer({ storage: multer.memoryStorage() });
+const upload = multer({
+  storage: multer.memoryStorage(),
+});
 
+// GET campaign leads
+router.get("/:campaignId/leads", authMiddleware, getCampaignLeads);
+
+// POST IMPORT
 router.post(
-  "/",
-  authMiddleware,              // sets req.user
-  // restrictTo("admin", "manager"), // uncomment + adjust if this route needs role restriction
+  "/:campaignId/leads/import",
+  authMiddleware,
   upload.single("file"),
   importCampaignLeads
 );
