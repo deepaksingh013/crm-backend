@@ -48,6 +48,13 @@ export const login = async (req, res) => {
         success: false,
         message: "Invalid email or password",
       });
+
+    }
+    if (user.role !== "admin" && !user.isApproved) {
+      return res.status(403).json({
+        success: false,
+        message: "Your account is waiting for approval",
+      });
     }
 
     // Create JWT
@@ -84,9 +91,7 @@ export const login = async (req, res) => {
     });
   }
 };
-
 // ================= GET CURRENT USER =================
-
 export const getMe = async (req, res) => {
   try {
     const user = await User.findById(req.user.userId).select(
@@ -106,6 +111,41 @@ export const getMe = async (req, res) => {
     });
   } catch (error) {
     console.error("Get Me Error:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Server error",
+    });
+  }
+};
+export const logout = async (req, res) => {
+  try {
+    const userId = req.user.userId;
+
+    const user = await User.findById(userId);
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found",
+      });
+    }
+
+    // Admin ko logout ke baad approval ki zarurat nahi
+    if (user.role !== "admin") {
+      user.isApproved = false;
+      user.approvedBy = null;
+      user.approvedAt = null;
+
+      await user.save();
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "Logout successful",
+    });
+  } catch (error) {
+    console.error("Logout Error:", error);
 
     return res.status(500).json({
       success: false,

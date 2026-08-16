@@ -36,6 +36,21 @@ const userSchema = new mongoose.Schema(
       type: [String],
       default: [],
     },
+    isApproved: {
+      type: Boolean,
+      default: false,
+    },
+
+    approvedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      default: null,
+    },
+
+    approvedAt: {
+      type: Date,
+      default: null,
+    },
   },
   {
     timestamps: true,

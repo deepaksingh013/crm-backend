@@ -44,17 +44,21 @@ export const createUser = async (req, res) => {
       role,
       permissions: permissions || [],
       isActive: true,
+      isApproved: false,
+      approvedBy: null,
+      approvedAt: null,
     });
 
     return res.status(201).json({
       success: true,
-      message: `${role} created successfully`,
+      message: `${role} created successfully. Approval required before login.`,
       user: {
         id: user._id,
         name: user.name,
         email: user.email,
         role: user.role,
         isActive: user.isActive,
+        isApproved: user.isApproved,
         permissions: user.permissions,
       },
     });
@@ -67,7 +71,143 @@ export const createUser = async (req, res) => {
     });
   }
 };
+export const approveUser = async (req, res) => {
+  try {
+    const { id } = req.params;
 
+    const approverId = req.user.userId;
+
+    // Find user who needs approval
+    const user = await User.findById(id);
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found",
+      });
+    }
+
+    // Admin does not need approval
+    if (user.role === "admin") {
+      return res.status(400).json({
+        success: false,
+        message: "Admin does not require approval",
+      });
+    }
+
+    // Find approver
+    const approver = await User.findById(approverId);
+
+    if (!approver) {
+      return res.status(404).json({
+        success: false,
+        message: "Approver not found",
+      });
+    }
+
+    // =====================================================
+    // CHECK APPROVAL HIERARCHY
+    // =====================================================
+
+    let canApprove = false;
+
+    // -----------------------------------------------------
+    // MANAGER
+    // Only ADMIN can approve manager
+    // -----------------------------------------------------
+
+    if (user.role === "manager") {
+      if (approver.role === "admin") {
+        canApprove = true;
+      }
+    }
+
+    // -----------------------------------------------------
+    // TL
+    // ADMIN OR MANAGER can approve TL
+    // -----------------------------------------------------
+
+    else if (user.role === "tl") {
+      if (
+        approver.role === "admin" ||
+        approver.role === "manager"
+      ) {
+        canApprove = true;
+      }
+    }
+
+    // -----------------------------------------------------
+    // TC
+    // ADMIN OR MANAGER OR TL can approve TC
+    // -----------------------------------------------------
+
+    else if (user.role === "tc") {
+      if (
+        approver.role === "admin" ||
+        approver.role === "manager" ||
+        approver.role === "tl"
+      ) {
+        canApprove = true;
+      }
+    }
+
+    // =====================================================
+    // NOT ALLOWED
+    // =====================================================
+
+    if (!canApprove) {
+      return res.status(403).json({
+        success: false,
+        message: `You are not allowed to approve this ${user.role}`,
+      });
+    }
+
+    // =====================================================
+    // ALREADY APPROVED
+    // =====================================================
+
+    if (user.isApproved) {
+      return res.status(400).json({
+        success: false,
+        message: "User is already approved",
+      });
+    }
+
+    // =====================================================
+    // APPROVE USER
+    // =====================================================
+
+    user.isApproved = true;
+
+    user.approvedBy = approver._id;
+
+    user.approvedAt = new Date();
+
+    await user.save();
+
+    return res.status(200).json({
+      success: true,
+      message: `${user.role} approved successfully`,
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        isActive: user.isActive,
+        isApproved: user.isApproved,
+        approvedBy: user.approvedBy,
+        approvedAt: user.approvedAt,
+      },
+    });
+  } catch (error) {
+    console.error("Approve User Error:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Server error",
+    });
+  }
+};
 export const getUsers = async (req, res) => {
   try {
     const users = await User.find()
