@@ -8,6 +8,7 @@ import authRoutes from "./src/config/route/authRoutes.js";
 import userRoutes from "./src/config/route/userRoutes.js";
 import campaignRoutes from "./src/config/route/campaignRoutes.js";
 import campaignLeadRoutes from "./src/config/route/campaignLeadRoutes.js"
+import leadRoutes from "./src/config/route/leadRoutes.js"
 
 dotenv.config();
 
@@ -38,6 +39,7 @@ app.use("/api/auth", authRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/campaigns", campaignLeadRoutes);   // specific routes first
 app.use("/api/campaigns", campaignRoutes);       // generic/catch-all routes second
+app.use("/api/leads", leadRoutes);
 // Server
 const PORT = process.env.PORT || 5000;
 
