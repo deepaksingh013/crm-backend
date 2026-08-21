@@ -3,7 +3,7 @@ import multer from "multer";
 
 import {
   importCampaignLeads,
-  getCampaignLeads,updateCampaignLead, getMyCampaignLeads
+  getCampaignLeads,updateCampaignLead, getMyCampaignLeads, getCampaignLeadSummary
 } from "../controller/campaignLeadController.js";
 
 import authMiddleware from "../middleware/authMiddleware.js";
@@ -33,5 +33,10 @@ router.get(
   "/:campaignId/leads/my",
   authMiddleware,
   getMyCampaignLeads
+);
+router.get(
+  "/lead-summary",
+  authMiddleware,
+  getCampaignLeadSummary
 );
 export default router;

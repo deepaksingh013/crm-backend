@@ -1,7 +1,7 @@
 import XLSX from "xlsx";
-
 import Lead from "../model/Lead.js";
 import Campaign from "../model/Campaign.js";
+import mongoose from "mongoose";
 
 export const importCampaignLeads = async (req, res) => {
   console.log("IMPORT API HIT");
@@ -417,10 +417,30 @@ export const getMyCampaignLeads = async (req, res) => {
     const userId = req.user.userId;
     const role = req.user.role;
 
-    console.log("🔥 GET MY LEADS HIT");
+    const {
+      status,
+      search,
+      page = 1,
+      limit = 20,
+    } = req.query;
+
+    console.log("🔥 GET MY CAMPAIGN LEADS HIT");
     console.log("Campaign ID:", campaignId);
     console.log("User ID:", userId);
     console.log("Role:", role);
+    console.log("Status:", status);
+    console.log("Search:", search);
+
+    // =========================
+    // CAMPAIGN ID CHECK
+    // =========================
+
+    if (!mongoose.Types.ObjectId.isValid(campaignId)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid campaign ID",
+      });
+    }
 
     // =========================
     // CAMPAIGN CHECK
@@ -440,7 +460,7 @@ export const getMyCampaignLeads = async (req, res) => {
     // =========================
 
     const query = {
-      campaign: campaignId,
+      campaign: new mongoose.Types.ObjectId(campaignId),
     };
 
     // =========================
@@ -448,31 +468,19 @@ export const getMyCampaignLeads = async (req, res) => {
     // =========================
 
     if (role === "admin" || role === "superadmin") {
-      // Admin can see all campaign leads
+      // Admin can see all leads of this campaign
     }
 
     // =========================
-    // TC
+    // TC / TL / MANAGER
     // =========================
 
-    else if (role === "tc") {
-      query.assignedTo = userId;
-    }
-
-    // =========================
-    // TL
-    // =========================
-
-    else if (role === "tl") {
-      query.assignedTo = userId;
-    }
-
-    // =========================
-    // MANAGER
-    // =========================
-
-    else if (role === "manager") {
-      query.assignedTo = userId;
+    else if (
+      role === "tc" ||
+      role === "tl" ||
+      role === "manager"
+    ) {
+      query.assignedTo = new mongoose.Types.ObjectId(userId);
     }
 
     // =========================
@@ -487,6 +495,52 @@ export const getMyCampaignLeads = async (req, res) => {
     }
 
     // =========================
+    // STATUS FILTER
+    // =========================
+
+    if (status) {
+      query.status = status;
+    }
+
+    // =========================
+    // SEARCH FILTER
+    // =========================
+
+    if (search) {
+      query.$or = [
+        {
+          name: {
+            $regex: search,
+            $options: "i",
+          },
+        },
+        {
+          mobile: {
+            $regex: search,
+            $options: "i",
+          },
+        },
+      ];
+    }
+
+    console.log("FINAL QUERY:", query);
+
+    // =========================
+    // PAGINATION
+    // =========================
+
+    const pageNumber = Math.max(Number(page), 1);
+    const limitNumber = Math.min(Math.max(Number(limit), 1), 100);
+
+    const skip = (pageNumber - 1) * limitNumber;
+
+    // =========================
+    // TOTAL COUNT
+    // =========================
+
+    const total = await Lead.countDocuments(query);
+
+    // =========================
     // GET LEADS
     // =========================
 
@@ -494,7 +548,9 @@ export const getMyCampaignLeads = async (req, res) => {
       .populate("assignedTo", "name email role")
       .populate("assignedBy", "name email role")
       .populate("createdBy", "name email role")
-      .sort({ createdAt: -1 });
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limitNumber);
 
     // =========================
     // RESPONSE
@@ -502,13 +558,206 @@ export const getMyCampaignLeads = async (req, res) => {
 
     return res.status(200).json({
       success: true,
-      message: "Leads fetched successfully",
+      message: "Campaign leads fetched successfully",
+
       role,
+
+      campaign: {
+        id: campaign._id,
+        name: campaign.title,
+      },
+
+      pagination: {
+        page: pageNumber,
+        limit: limitNumber,
+        total,
+        totalPages: Math.ceil(total / limitNumber),
+      },
+
+      filters: {
+        status: status || "All",
+        search: search || "",
+      },
+
       count: leads.length,
+
       data: leads,
     });
   } catch (error) {
     console.error("GET MY CAMPAIGN LEADS ERROR:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Internal server error",
+      error: error.message,
+    });
+  }
+};
+
+export const getCampaignLeadSummary = async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const role = req.user.role;
+
+    console.log("🔥 CAMPAIGN LEAD SUMMARY");
+    console.log("User ID:", userId);
+    console.log("Role:", role);
+
+    let leadMatch = {};
+
+    // =========================
+    // ADMIN
+    // =========================
+
+    if (role === "admin" || role === "superadmin") {
+      // Admin sees all leads
+      leadMatch = {};
+    }
+
+    // =========================
+    // TC / TL / MANAGER
+    // =========================
+
+    else if (
+      role === "tc" ||
+      role === "tl" ||
+      role === "manager"
+    ) {
+      leadMatch = {
+        assignedTo: new mongoose.Types.ObjectId(userId),
+      };
+    }
+
+    // =========================
+    // INVALID ROLE
+    // =========================
+
+    else {
+      return res.status(403).json({
+        success: false,
+        message: "You are not authorized to view lead summary",
+      });
+    }
+
+    console.log("LEAD MATCH:", leadMatch);
+
+    // =========================
+    // GET ALL CAMPAIGNS
+    // =========================
+
+    const campaigns = await Campaign.find()
+      .select("_id title")
+      .sort({ createdAt: -1 });
+
+    // =========================
+    // GET LEAD COUNTS
+    // =========================
+
+    const Lead = mongoose.model("Lead");
+
+    const leadSummary = await Lead.aggregate([
+      {
+        $match: leadMatch,
+      },
+
+      {
+        $group: {
+          _id: {
+            campaign: "$campaign",
+            status: "$status",
+          },
+          count: {
+            $sum: 1,
+          },
+        },
+      },
+    ]);
+
+    // =========================
+    // CREATE COUNT MAP
+    // =========================
+
+    const summaryMap = {};
+
+    leadSummary.forEach((item) => {
+      const campaignId = item._id.campaign.toString();
+      const status = item._id.status;
+
+      if (!summaryMap[campaignId]) {
+        summaryMap[campaignId] = {
+          total: 0,
+          complete: 0,
+          reject: 0,
+          holding: 0,
+          notConnected: 0,
+        };
+      }
+
+      summaryMap[campaignId].total += item.count;
+
+      if (status === "Complete") {
+        summaryMap[campaignId].complete += item.count;
+      }
+
+      if (status === "Reject") {
+        summaryMap[campaignId].reject += item.count;
+      }
+
+      if (status === "Holding") {
+        summaryMap[campaignId].holding += item.count;
+      }
+
+      if (status === "Not Connected") {
+        summaryMap[campaignId].notConnected += item.count;
+      }
+    });
+
+    // =========================
+    // COMBINE CAMPAIGNS + COUNTS
+    // =========================
+
+    const data = campaigns.map((campaign) => {
+      const campaignId = campaign._id.toString();
+
+      const counts = summaryMap[campaignId] || {
+        total: 0,
+        complete: 0,
+        reject: 0,
+        holding: 0,
+        notConnected: 0,
+      };
+
+      return {
+        campaignId: campaign._id,
+        campaignName: campaign.title,
+
+        totalLeads: counts.total,
+
+        statusCount: {
+          complete: counts.complete,
+          reject: counts.reject,
+          holding: counts.holding,
+          notConnected: counts.notConnected,
+        },
+      };
+    });
+
+    // =========================
+    // RESPONSE
+    // =========================
+
+    return res.status(200).json({
+      success: true,
+      message: "Campaign lead summary fetched successfully",
+
+      role,
+
+      count: data.length,
+
+      data,
+    });
+  } catch (error) {
+    console.error("CAMPAIGN LEAD SUMMARY ERROR:", error);
 
     return res.status(500).json({
       success: false,

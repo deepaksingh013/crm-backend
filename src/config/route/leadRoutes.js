@@ -1,7 +1,7 @@
 import express from "express";
 
 import {
-  assignLeads,
+  assignLeads
 } from "../controller/leadController.js";
 
 import authMiddleware from "../middleware/authMiddleware.js";
