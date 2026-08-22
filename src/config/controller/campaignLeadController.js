@@ -209,11 +209,13 @@ export const importCampaignLeads = async (req, res) => {
 
 export const getCampaignLeads = async (req, res) => {
   try {
-    console.log("🔥 GET CAMPAIGN LEADS HIT");
-    console.log("Campaign ID:", req.params.campaignId);
-    console.log("User:", req.user);
-
     const { campaignId } = req.params;
+
+    const { assigned = "all" } = req.query;
+
+    console.log("🔥 GET CAMPAIGN LEADS HIT");
+    console.log("Campaign ID:", campaignId);
+    console.log("Assigned Filter:", assigned);
 
     // =========================
     // CAMPAIGN CHECK
@@ -229,12 +231,35 @@ export const getCampaignLeads = async (req, res) => {
     }
 
     // =========================
-    // GET CAMPAIGN LEADS
+    // BUILD QUERY
     // =========================
 
-    const leads = await Lead.find({
+    const query = {
       campaign: campaignId,
-    })
+    };
+
+    // =========================
+    // ASSIGNMENT FILTER
+    // =========================
+
+    if (assigned === "unassigned") {
+      query.assignedTo = null;
+    }
+
+    if (assigned === "assigned") {
+      query.assignedTo = {
+        $ne: null,
+      };
+    }
+
+    // assigned=all
+    // koi assignedTo filter nahi lagega
+
+    // =========================
+    // GET LEADS
+    // =========================
+
+    const leads = await Lead.find(query)
       .populate("assignedTo", "name email role")
       .populate("assignedBy", "name email role")
       .populate("createdBy", "name email role")
@@ -247,11 +272,17 @@ export const getCampaignLeads = async (req, res) => {
     return res.status(200).json({
       success: true,
       message: "Campaign leads fetched successfully",
+
+      filter: {
+        assigned,
+      },
+
       count: leads.length,
+
       data: leads,
     });
   } catch (error) {
-    console.error("GET LEADS ERROR:", error);
+    console.error("GET CAMPAIGN LEADS ERROR:", error);
 
     return res.status(500).json({
       success: false,

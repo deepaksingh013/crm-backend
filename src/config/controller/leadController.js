@@ -125,7 +125,7 @@ export const assignLeads = async (req, res) => {
                     assignedBy: assignedBy,
 
                     // Fresh leads for new assignee
-                    status: "New",
+                    status: "Pending",
                 },
             }
         );
@@ -157,7 +157,7 @@ export const assignLeads = async (req, res) => {
 
             notFoundLeads: notFoundLeadIds,
 
-            status: "New",
+            status: "Pending",
         });
 
     } catch (error) {

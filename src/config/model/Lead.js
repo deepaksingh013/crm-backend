@@ -132,14 +132,14 @@ const leadSchema = new mongoose.Schema(
     status: {
       type: String,
       enum: [
+        "Pending",
         "Complete",
         "Reject",
         "Holding",
         "Not Connected",
       ],
-      default: "Not Connected",
+      default: "Pending",
     },
-
     // =========================
     // STATUS REASON
     // =========================

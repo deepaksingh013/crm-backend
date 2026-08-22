@@ -3,7 +3,7 @@ import multer from "multer";
 
 import {
   importCampaignLeads,
-  getCampaignLeads,updateCampaignLead, getMyCampaignLeads, getCampaignLeadSummary
+  getCampaignLeads,updateCampaignLead, getMyCampaignLeads, getCampaignLeadSummary,
 } from "../controller/campaignLeadController.js";
 
 import authMiddleware from "../middleware/authMiddleware.js";
