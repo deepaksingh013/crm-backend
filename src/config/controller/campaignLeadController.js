@@ -697,6 +697,7 @@ export const getCampaignLeadSummary = async (req, res) => {
             campaign: "$campaign",
             status: "$status",
           },
+
           count: {
             $sum: 1,
           },
@@ -717,6 +718,7 @@ export const getCampaignLeadSummary = async (req, res) => {
       if (!summaryMap[campaignId]) {
         summaryMap[campaignId] = {
           total: 0,
+          pending: 0,
           complete: 0,
           reject: 0,
           holding: 0,
@@ -724,7 +726,266 @@ export const getCampaignLeadSummary = async (req, res) => {
         };
       }
 
+      // Total
       summaryMap[campaignId].total += item.count;
+
+      // Pending
+      if (status === "Pending") {
+        summaryMap[campaignId].pending += item.count;
+      }
+
+      // Complete
+      if (status === "Complete") {
+        summaryMap[campaignId].complete += item.count;
+      }
+
+      // Reject
+      if (status === "Reject") {
+        summaryMap[campaignId].reject += item.count;
+      }
+
+      // Holding
+      if (status === "Holding") {
+        summaryMap[campaignId].holding += item.count;
+      }
+
+      // Not Connected
+      if (status === "Not Connected") {
+        summaryMap[campaignId].notConnected += item.count;
+      }
+    });
+
+    // =========================
+    // COMBINE CAMPAIGNS + COUNTS
+    // =========================
+
+    const data = campaigns.map((campaign) => {
+      const campaignId = campaign._id.toString();
+
+      const counts = summaryMap[campaignId] || {
+        total: 0,
+        pending: 0,
+        complete: 0,
+        reject: 0,
+        holding: 0,
+        notConnected: 0,
+      };
+
+      return {
+        campaignId: campaign._id,
+
+        campaignName: campaign.title,
+
+        totalLeads: counts.total,
+
+        statusCount: {
+          pending: counts.pending,
+          complete: counts.complete,
+          reject: counts.reject,
+          holding: counts.holding,
+          notConnected: counts.notConnected,
+        },
+      };
+    });
+
+    // =========================
+    // RESPONSE
+    // =========================
+
+    return res.status(200).json({
+      success: true,
+
+      message: "Campaign lead summary fetched successfully",
+
+      role,
+
+      count: data.length,
+
+      data,
+    });
+
+  } catch (error) {
+    console.error("CAMPAIGN LEAD SUMMARY ERROR:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Internal server error",
+      error: error.message,
+    });
+  }
+};
+
+export const getUserLeadSummary = async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const role = req.user.role;
+
+    console.log("🔥 USER LEAD SUMMARY HIT");
+    console.log("User ID:", userId);
+    console.log("Role:", role);
+
+    // =====================================
+    // USER FILTER
+    // =====================================
+
+    let leadMatch = {};
+
+    if (role === "admin" || role === "superadmin") {
+      // Admin -> all leads
+      leadMatch = {};
+    } else if (
+      role === "tc" ||
+      role === "tl" ||
+      role === "manager"
+    ) {
+      // User -> only assigned leads
+      leadMatch = {
+        assignedTo: new mongoose.Types.ObjectId(userId),
+      };
+    } else {
+      return res.status(403).json({
+        success: false,
+        message: "You are not authorized to view summary",
+      });
+    }
+
+    // =====================================
+    // TOTAL CAMPAIGNS
+    // =====================================
+
+    const totalCampaigns = await Campaign.countDocuments();
+
+    // =====================================
+    // OVERALL SUMMARY
+    // =====================================
+
+    const overallSummary = await Lead.aggregate([
+      {
+        $match: leadMatch,
+      },
+      {
+        $group: {
+          _id: null,
+
+          totalLeads: {
+            $sum: 1,
+          },
+
+          totalPending: {
+            $sum: {
+              $cond: [
+                { $eq: ["$status", "Pending"] },
+                1,
+                0,
+              ],
+            },
+          },
+
+          totalComplete: {
+            $sum: {
+              $cond: [
+                { $eq: ["$status", "Complete"] },
+                1,
+                0,
+              ],
+            },
+          },
+
+          totalReject: {
+            $sum: {
+              $cond: [
+                { $eq: ["$status", "Reject"] },
+                1,
+                0,
+              ],
+            },
+          },
+
+          totalHolding: {
+            $sum: {
+              $cond: [
+                { $eq: ["$status", "Holding"] },
+                1,
+                0,
+              ],
+            },
+          },
+
+          totalNotConnected: {
+            $sum: {
+              $cond: [
+                { $eq: ["$status", "Not Connected"] },
+                1,
+                0,
+              ],
+            },
+          },
+        },
+      },
+    ]);
+
+    // =====================================
+    // DEFAULT OVERALL
+    // =====================================
+
+    const overall = overallSummary[0] || {
+      totalLeads: 0,
+      totalPending: 0,
+      totalComplete: 0,
+      totalReject: 0,
+      totalHolding: 0,
+      totalNotConnected: 0,
+    };
+
+    // =====================================
+    // CAMPAIGN-WISE SUMMARY
+    // =====================================
+
+    const campaignSummary = await Lead.aggregate([
+      {
+        $match: leadMatch,
+      },
+
+      {
+        $group: {
+          _id: {
+            campaign: "$campaign",
+            status: "$status",
+          },
+
+          count: {
+            $sum: 1,
+          },
+        },
+      },
+    ]);
+
+    // =====================================
+    // CREATE CAMPAIGN MAP
+    // =====================================
+
+    const summaryMap = {};
+
+    campaignSummary.forEach((item) => {
+      const campaignId = item._id.campaign.toString();
+      const status = item._id.status;
+
+      if (!summaryMap[campaignId]) {
+        summaryMap[campaignId] = {
+          totalLeads: 0,
+          pending: 0,
+          complete: 0,
+          reject: 0,
+          holding: 0,
+          notConnected: 0,
+        };
+      }
+
+      summaryMap[campaignId].totalLeads += item.count;
+
+      if (status === "Pending") {
+        summaryMap[campaignId].pending += item.count;
+      }
 
       if (status === "Complete") {
         summaryMap[campaignId].complete += item.count;
@@ -743,15 +1004,24 @@ export const getCampaignLeadSummary = async (req, res) => {
       }
     });
 
-    // =========================
-    // COMBINE CAMPAIGNS + COUNTS
-    // =========================
+    // =====================================
+    // GET CAMPAIGNS
+    // =====================================
 
-    const data = campaigns.map((campaign) => {
+    const campaigns = await Campaign.find()
+      .select("_id title")
+      .sort({ createdAt: -1 });
+
+    // =====================================
+    // CAMPAIGN-WISE RESPONSE
+    // =====================================
+
+    const campaignWiseSummary = campaigns.map((campaign) => {
       const campaignId = campaign._id.toString();
 
       const counts = summaryMap[campaignId] || {
-        total: 0,
+        totalLeads: 0,
+        pending: 0,
         complete: 0,
         reject: 0,
         holding: 0,
@@ -762,9 +1032,10 @@ export const getCampaignLeadSummary = async (req, res) => {
         campaignId: campaign._id,
         campaignName: campaign.title,
 
-        totalLeads: counts.total,
+        totalLeads: counts.totalLeads,
 
         statusCount: {
+          pending: counts.pending,
           complete: counts.complete,
           reject: counts.reject,
           holding: counts.holding,
@@ -773,22 +1044,41 @@ export const getCampaignLeadSummary = async (req, res) => {
       };
     });
 
-    // =========================
+    // =====================================
     // RESPONSE
-    // =========================
+    // =====================================
 
     return res.status(200).json({
       success: true,
-      message: "Campaign lead summary fetched successfully",
 
-      role,
+      message: "User lead summary fetched successfully",
 
-      count: data.length,
+      user: {
+        userId,
+        role,
+      },
 
-      data,
+      summary: {
+        totalCampaigns,
+
+        totalLeads: overall.totalLeads,
+
+        totalPending: overall.totalPending,
+
+        totalComplete: overall.totalComplete,
+
+        totalReject: overall.totalReject,
+
+        totalHolding: overall.totalHolding,
+
+        totalNotConnected: overall.totalNotConnected,
+      },
+
+      campaignWiseSummary,
     });
+
   } catch (error) {
-    console.error("CAMPAIGN LEAD SUMMARY ERROR:", error);
+    console.error("USER LEAD SUMMARY ERROR:", error);
 
     return res.status(500).json({
       success: false,
